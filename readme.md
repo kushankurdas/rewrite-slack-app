@@ -4,12 +4,12 @@ A Slack application built with Node.js that uses OpenAI's GPT-4o-mini to help us
 
 ## Features
 
-- **Slash Command:** Use `/rewrite [your message]` to get an AI-powered suggestion.
-- **Private Preview:** The rewritten text is shown only to you (ephemeral message) first.
-- **Smart Actions:**
-    - **Send Message:** Instantly posts the rewritten version to the channel, "impersonating" you with your name and avatar.
-    - **Cancel:** Discards the suggestion and posts your original text instead.
-- **Context Preservation:** Keeps the original intent while improving tone and clarity.
+- **Slash Command:** Use `/rewrite [your message]` to instantly open a private modal popup.
+- **Interactive Editor:** The modal displays the AI-polished suggestion. You can review and **edit the text** directly in the window before sending to ensure it's perfect.
+- **Seamless Posting:**
+  - **Post:** Click the confirmation button to send the final text to the channel, "impersonating" you with your name and avatar.
+  - **Discard:** Simply close the modal to discard the draft without posting.
+- **Context Preservation:** Uses GPT-4o-mini to keep your original intent while strictly improving tone and clarity.
 
 ## Tech Stack
 
