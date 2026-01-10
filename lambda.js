@@ -20,7 +20,7 @@ module.exports.handler = async (event, context, callback) => {
     // Intercepting "Worker" Events (triggering by ourselves)
     if (event.type === 'rewrite_worker') {
         console.log("Worker waking up...");
-        await processWorkerEvent(event.payload);
+        await processWorkerEvent(event.payload, app.client);
         return;
     }
 
