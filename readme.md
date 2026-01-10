@@ -16,7 +16,6 @@ A Slack application built with Node.js that uses OpenAI's GPT-4o-mini to help us
 - [Slack Bolt for JavaScript](https://slack.dev/bolt-js/concepts)
 - [OpenAI API](https://platform.openai.com/docs/overview) (GPT-4o-mini)
 - Node.js & npm
-- Axios for response handling
 
 ## Prerequisites
 
@@ -24,24 +23,25 @@ A Slack application built with Node.js that uses OpenAI's GPT-4o-mini to help us
 - A [Slack App](https://api.slack.com/apps) with the following:
     - **Slash Commands** enabled (`/rewrite`)
     - **Interactivity** enabled
-    - **Scopes:** `chat:write`, `commands`, `users:read`
+  - **Bot Token Scopes:**
+    - `commands`: Enable the slash command.
 - An OpenAI API Key
 
 ## Getting Started
 
 ### 1. Clone the repository
 ```bash
-bash git clone <your-repo-url> cd rewrite
+git clone <your-repo-url> cd rewrite
 ```
 ### 2. Install dependencies
 ```bash
-bash npm install
+npm install
 ```
 
 ### 3. Configure Environment Variables
 Copy the template file and fill in your credentials:
 ```bash
-bash cp .env.template .env
+cp .env.template .env
 ```
 
 Edit `.env`:
@@ -52,18 +52,18 @@ Edit `.env`:
 
 ### 4. Run the application
 ```bash
-node node.js
+npm start
 ```
-
 
 ## Usage
 
 In any Slack channel where the app is installed, type:
+
 `/rewrite can we meet at 5 instead of 4 because i am busy`
 
-1. The app will respond privately with a professional suggestion: *"Could we reschedule our 4:00 PM meeting to 5:00 PM?"*
-2. Click **Send Message** to post it publicly as yourself.
-3. Click **Cancel** to post your original message instead.
+1. A **private modal** will open containing a professional suggestion (e.g., *"Could we reschedule our 4:00 PM meeting to 5:00 PM?"*).
+2. **Review or Edit** the text inside the text box if you want to make changes.
+3. Click **Post** to send it to the channel. It will appear as if you sent it.
 
 ## License
 
