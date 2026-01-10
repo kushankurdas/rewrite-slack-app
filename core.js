@@ -1,4 +1,3 @@
-const axios = require('axios');
 const OpenAI = require("openai");
 
 async function rewriteWithAI(text) {
@@ -41,117 +40,158 @@ async function rewriteWithAI(text) {
     return response.choices[0].message.content.trim();
 }
 
-async function processWorkerEvent(payload) {
-    const {text, response_url} = payload;
-    console.log("Processing worker event for:", text);
+async function processWorkerEvent(payload, client) {
+    const { text, view_id } = payload;
 
     try {
-        // Call AI
         const rewrittenText = await rewriteWithAI(text);
 
-        // Show Result with Buttons
-        await axios.post(response_url, {
-            response_type: "ephemeral",
-            blocks: [
-                {
-                    type: "section",
-                    text: {
-                        type: "mrkdwn",
-                        text: `*Original:* \n${text}\n\n*AI suggestion:* \n${rewrittenText}`
-                    }
-                },
-                {
-                    type: "actions",
-                    elements: [
-                        {
-                            type: "button",
-                            text: {type: "plain_text", text: "Send AI suggestion"},
-                            style: "primary",
-                            action_id: "send_rewritten_msg_action",
-                            value: rewrittenText
+        const metadata = JSON.stringify({
+            original: text,
+            ai: rewrittenText,
+            mode: "ai"
+        });
+
+        await client.views.update({
+            view_id: view_id,
+            view: {
+                type: "modal",
+                callback_id: "view_copy_done",
+                private_metadata: metadata,
+                title: { type: "plain_text", text: "Suggestion Ready" },
+                submit: { type: "plain_text", text: "Thanks!" },
+                blocks: [
+                    {
+                        type: "input",
+                        block_id: "content_block_ai",
+                        element: {
+                            type: "plain_text_input",
+                            action_id: "copy_input",
+                            multiline: true,
+                            initial_value: rewrittenText
                         },
-                        {
-                            type: "button",
-                            text: {type: "plain_text", text: "Send original"},
-                            action_id: "cancel_action",
-                            value: text
-                        }
-                    ]
-                }
-            ]
+                        label: { type: "plain_text", text: ":sparkles: Here is the *AI suggestion*. Copy it below:" },
+                        hint: { type: "plain_text", text: "Select all (⌘+A or Ctrl+A) and copy to clipboard." }
+                    },
+                    {
+                        type: "actions",
+                        block_id: "toggle_actions",
+                        elements: [
+                            {
+                                type: "button",
+                                text: { type: "plain_text", text: "🔄 Show Original Draft" },
+                                action_id: "toggle_text_view",
+                                value: "show_original"
+                            }
+                        ]
+                    }
+                ]
+            }
         });
 
     } catch (error) {
         console.error("Worker Error:", error);
-        await axios.post(response_url, {
-            response_type: "ephemeral",
-            text: ":x: Sorry, something went wrong while processing your request."
+        await client.views.update({
+            view_id: view_id,
+            view: {
+                type: "modal",
+                title: { type: "plain_text", text: "Error" },
+                close: { type: "plain_text", text: "Close" },
+                blocks: [
+                    {
+                        type: "section",
+                        text: { type: "mrkdwn", text: ":x: Sorry, something went wrong processing your request." }
+                    }
+                ]
+            }
         });
     }
 }
 
-// The Main Configuration
-// Accepts an optional 'lambdaClient' argument
+// The App Configuration
 function configureApp(app, lambdaClient = null) {
 
-    app.command("/rewrite", async ({command, ack}) => {
-        // Acknowledges IMMEDIATELY (Satisfies 3s timeout)
+    app.command("/rewrite", async ({ command, ack, client }) => {
         await ack();
-
-        // Send error - if no text found
         if (!command.text) return;
 
-        const payload = {
-            channel_id: command.channel_id,
-            user_id: command.user_id,
-            text: command.text,
-            response_url: command.response_url
-        };
+        const openResponse = await client.views.open({
+            trigger_id: command.trigger_id,
+            view: {
+                type: "modal",
+                title: { type: "plain_text", text: "Rewriting..." },
+                blocks: [{ type: "section", text: { type: "mrkdwn", text: ":hourglass_flowing_sand: AI is thinking..." } }]
+            }
+        });
 
-        // THE HYBRID BRANCHING
+        const payload = { text: command.text, view_id: openResponse.view.id };
+
         if (lambdaClient) {
-            // SCENARIO A: Running on AWS Lambda,
-            // Invoking a NEW Lambda execution so the current one can close.
-            console.log("Environment: Lambda (Invoking self)");
-
             await lambdaClient.invoke({
                 FunctionName: process.env.AWS_LAMBDA_FUNCTION_NAME,
-                InvocationType: 'Event', // Async execution
-                Payload: JSON.stringify({type: 'rewrite_worker', payload})
+                InvocationType: 'Event',
+                Payload: JSON.stringify({ type: 'rewrite_worker', payload })
             }).promise();
-
         } else {
-            // SCENARIO B: Running Locally
-            // Just call the function. We do NOT 'await' it, so the http response closes
-            // while Node continues processing in the background.
-            console.log("Environment: Local (Running in background)");
-            processWorkerEvent(payload).catch(console.error);
+            processWorkerEvent(payload, client).catch(console.error);
         }
     });
 
-    // Action Handlers
-    const handleMessagePost = async ({body, ack, client, isOriginal}) => {
+    app.view("view_copy_done", async ({ ack }) => {
         await ack();
-        const text = body.actions[0].value;
-        const channelId = body.channel.id;
-        const userId = body.user.id;
+    });
 
-        try {
-            const userInfo = await client.users.info({user: userId});
-            await client.chat.postMessage({
-                channel: channelId,
-                text: text,
-                username: userInfo.user.profile.display_name || userInfo.user.profile.real_name,
-                icon_url: userInfo.user.profile.image_original || userInfo.user.profile.image_192
-            });
-            await axios.post(body.response_url, {delete_original: true});
-        } catch (err) {
-            console.error(`Error sending ${isOriginal ? 'original' : 'rewritten'} message:`, err);
-        }
-    };
+    app.action("toggle_text_view", async ({ ack, body, client }) => {
+        await ack();
 
-    app.action("send_rewritten_msg_action", (args) => handleMessagePost({...args, isOriginal: false}));
-    app.action("cancel_action", (args) => handleMessagePost({...args, isOriginal: true}));
+        const metadata = JSON.parse(body.view.private_metadata);
+
+        const isCurrentlyAi = metadata.mode === "ai";
+        const newMode = isCurrentlyAi ? "original" : "ai";
+        const textToShow = isCurrentlyAi ? metadata.original : metadata.ai;
+        const buttonLabel = isCurrentlyAi ? "✨ Show AI Suggestion" : "🔄 Show Original Draft";
+
+        metadata.mode = newMode;
+
+        await client.views.update({
+            view_id: body.view.id,
+            view: {
+                type: "modal",
+                callback_id: "view_copy_done",
+                private_metadata: JSON.stringify(metadata),
+                title: { type: "plain_text", text: isCurrentlyAi ? "Original Draft" : "Suggestion Ready" },
+                submit: { type: "plain_text", text: "Thanks!" },
+                blocks: [
+                    {
+                        type: "input",
+                        block_id: `content_block_${newMode}`,
+                        element: {
+                            type: "plain_text_input",
+                            action_id: "copy_input",
+                            multiline: true,
+                            initial_value: textToShow
+                        },
+                        label: { type: "plain_text", text: isCurrentlyAi
+                                ? ":rewind: Here is your *original text* in case you want to revert:"
+                                : ":sparkles: Here is the *AI suggestion*. Copy it below:" },
+                        hint: { type: "plain_text", text: "Select all (⌘+A or Ctrl+A) and copy to clipboard." }
+                    },
+                    {
+                        type: "actions",
+                        block_id: "toggle_actions",
+                        elements: [
+                            {
+                                type: "button",
+                                text: { type: "plain_text", text: buttonLabel },
+                                action_id: "toggle_text_view",
+                                value: "toggle"
+                            }
+                        ]
+                    }
+                ]
+            }
+        });
+    });
 }
 
-module.exports = {configureApp, processWorkerEvent};
+module.exports = { configureApp, processWorkerEvent };

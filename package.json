@@ -13,7 +13,6 @@
     "@google/generative-ai": "^0.24.1",
     "@slack/bolt": "^4.6.0",
     "aws-sdk": "^2.1693.0",
-    "axios": "^1.13.2",
     "dotenv": "^17.2.3",
     "openai": "^6.15.0"
   }
