@@ -63,7 +63,7 @@ In any Slack channel where the app is installed, type:
 
 1. A **private modal** will open containing a professional suggestion (e.g., *"Could we reschedule our 4:00 PM meeting to 5:00 PM?"*).
 2. **Review or Edit** the text inside the text box if you want to make changes.
-3. Click **Post** to send it to the channel. It will appear as if you sent it.
+3. Copy and paste the text into the channel.
 
 ## License
 
